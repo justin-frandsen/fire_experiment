@@ -4,7 +4,7 @@ import time
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
-from ..gbvs.saliency_models import gbvs, ittikochneibur
+from saliency_models import gbvs, ittikochneibur
 
 class ImageProcessor:
     def __init__(self, graph_var, imname):

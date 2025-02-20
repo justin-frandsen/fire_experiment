@@ -196,3 +196,6 @@ Temporary Items
 
 # PyPI configuration file
 .pypirc
+
+# Ignore saliency_models folder
+saliency_models/

@@ -21,6 +21,7 @@ Additionally, in a seperate repository you need to clone GBVS using:
 ```bash
 git clone https://github.com/shreelock/gbvs
 ```
+once cloned copy the saliency_models folder into the fire_experiment folder.
 
 ## Usage
 To use the code, run the following command:
