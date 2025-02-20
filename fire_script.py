@@ -4,7 +4,7 @@ import time
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
-from saliency_models import gbvs, ittikochneibur
+from ..gbvs.saliency_models import gbvs, ittikochneibur
 
 class ImageProcessor:
     def __init__(self, graph_var, imname):
@@ -77,7 +77,7 @@ class ImageProcessor:
         red_channel_masked[red_mask] = red_channel[red_mask]
 
         # Create a mask where red channel values are over 100
-        green_mask = green_channel > 200
+        green_mask = green_channel > 150
 
         # Apply the mask to the red channel
         green_channel_masked = np.zeros_like(green_channel)
