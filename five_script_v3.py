@@ -4,7 +4,7 @@ import time
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
-from saliency_models import gbvs, ittikochneibur
+from saliency_models import gbvs
 
 class ImageProcessor:
     def __init__(self, graph_var, imname):
@@ -87,6 +87,29 @@ class ImageProcessor:
                 ax.axis('off')
             plt.show()
 
+    def save_image(self, saliency_map_gbvs):
+        #create directories if they don't exist
+        os.makedirs("./csv_output", exist_ok=True)
+        os.makedirs("./outputs", exist_ok=True)
+
+        # Save the saliency map image
+        output_image_name = f"./outputs/{os.path.basename(self.imname)}_out{time.time()}.jpg"
+        cv2.imwrite(output_image_name, saliency_map_gbvs)
+
+        # Save saliency values to a CSV
+        saliency_csv_filename = f"./csv_output/{os.path.basename(self.imname)}_saliency.csv"
+        np.savetxt(saliency_csv_filename, saliency_map_gbvs, delimiter=",")
+
+        # Compute mean saliency
+        mean_saliency = np.mean(saliency_map_gbvs)
+        self.mean_saliency_list.append({"image_name": os.path.basename(self.imname), "mean_saliency": mean_saliency})
+
+    def save_mean_saliency(self):
+        # Save mean saliency values to a CSV
+        mean_saliency_df = pd.DataFrame(self.mean_saliency_list)
+        mean_saliency_df.to_csv("./csv_output/mean_saliency.csv", index=False)
+        print("Processing complete. Saliency data saved.")
+
 if __name__ == '__main__':
     graph_var = input("Would you like to graph the images? (y/n): ").lower()
     images = os.listdir("images")
@@ -97,3 +120,5 @@ if __name__ == '__main__':
         fire_mask, vegetation_mask, saliency_map_gbvs, roi_type_mask, roi_index_mask = processor.process_image(counter)
         processor.graphing_func(roi_index_mask, fire_mask, vegetation_mask, saliency_map_gbvs)
         processor.save_contours(roi_type_mask, roi_index_mask, image_name)
+
+        processor.save_image(saliency_map_gbvs)
