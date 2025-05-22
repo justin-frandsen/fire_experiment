@@ -17,16 +17,19 @@ To run this project, you need to have Python installed. You can install the requ
 ```bash
 pip install -r requirements.txt
 ```
-Additionally, in a seperate repository you need to clone GBVS using:
+Additionally, in a separate repository you need to clone GBVS using:
 ```bash
 git clone https://github.com/shreelock/gbvs
 ```
-once cloned copy the saliency_models folder into the fire_experiment folder.
+once cloned copy the saliency_models folder into the fire_experiment folder using:
+```bash
+cp -r gbvs/saliency_models fire_experiment/
+```
 
 ## Usage
 To use the code, run the following command:
 ```bash
-python fire_script.py
+python roi_saliency_extractor.py
 ```
 
 ## Results
@@ -34,7 +37,7 @@ The results of the experiment will be saved in the `results` directory. You can 
 
 ## References
 - [GBVS on GitHub](https://github.com/shreelock/gbvs)
-- [Original Paper on GBVS](Harel, J., Koch, C., & Perona, P. (2006). Graph-based visual saliency. Advances in neural information processing systems, 19.)
+- Original Paper on GBVS: Harel, J., Koch, C., & Perona, P. (2006). Graph-based visual saliency. Advances in neural information processing systems, 19.
 
 
 
