@@ -25,20 +25,26 @@ class ImageProcessor:
         self.mean_saliency_list = []
 
     def process_image(self, counter):
+        # Main pipeline for processing a single image
         print(f"Processing {self.imname}, number: {counter}")
         img_float, blue_channel, green_channel, red_channel = self._prepare_image()
         red_ratio, green_ratio = self._compute_color_ratios(red_channel, green_channel, blue_channel)
         fire_mask, vegetation_mask = self._compute_masks(red_ratio, green_ratio)
         fire_mask_bin, vegetation_mask_bin = self._postprocess_masks(fire_mask, vegetation_mask)
         fire_contours, vegetation_contours = self._find_contours(fire_mask_bin, vegetation_mask_bin)
+        fire_mask_largest, vegetation_mask_largest, fire_contours, vegetation_contours = self._keep_largest_regions(
+            fire_contours, vegetation_contours, fire_mask_bin.shape, self.top_k
+        )
         roi_type_mask, roi_index_mask = self._assign_rois(fire_contours, vegetation_contours, fire_mask_bin.shape)
         self._save_results(
             fire_contours, vegetation_contours, roi_type_mask, roi_index_mask,
             fire_mask_bin, vegetation_mask_bin
         )
+        # Compute saliency map using GBVS
         self.saliency_map_gbvs = gbvs.compute_saliency(self.img)
 
     def _prepare_image(self):
+        # Convert image to float and split into color channels
         img_float = self.img.astype(np.float32) + 1e-6
         blue_channel = img_float[:, :, 0]
         green_channel = img_float[:, :, 1]
@@ -46,15 +52,17 @@ class ImageProcessor:
         return img_float, blue_channel, green_channel, red_channel
 
     def _compute_color_ratios(self, red_channel, green_channel, blue_channel):
+        # Compute normalized red and green ratios
         total = red_channel + green_channel + blue_channel
         red_ratio = red_channel / total
         green_ratio = green_channel / total
         return red_ratio, green_ratio
 
     def _compute_masks(self, red_ratio, green_ratio):
+        # Threshold red and green ratios to create fire and vegetation masks
         red_mean = np.mean(red_ratio)
         red_std = np.std(red_ratio)
-        adaptive_red_thresh = red_mean + 0.5 * red_std
+        adaptive_red_thresh = red_mean + 0.2 * red_std
         fire_mask = (red_ratio > adaptive_red_thresh).astype(np.uint8)
 
         green_mean = np.mean(green_ratio)
@@ -64,6 +72,7 @@ class ImageProcessor:
         return fire_mask, vegetation_mask
 
     def _postprocess_masks(self, fire_mask, vegetation_mask):
+        # Smooth and binarize masks, then apply morphological closing
         fire_mask_blur = cv2.GaussianBlur(fire_mask, (5, 5), 0)
         vegetation_mask_blur = cv2.GaussianBlur(vegetation_mask, (5, 5), 0)
         _, fire_mask_bin = cv2.threshold(fire_mask_blur, 0.5, 1, cv2.THRESH_BINARY)
@@ -76,11 +85,13 @@ class ImageProcessor:
         return fire_mask_bin, vegetation_mask_bin
 
     def _find_contours(self, fire_mask_bin, vegetation_mask_bin):
+        # Find contours in fire and vegetation masks
         fire_contours, _ = cv2.findContours(fire_mask_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         vegetation_contours, _ = cv2.findContours(vegetation_mask_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         return fire_contours, vegetation_contours
 
     def _assign_rois(self, fire_contours, vegetation_contours, mask_shape):
+        # Assign unique indices and types to each ROI (fire=1, vegetation=2)
         roi_type_mask = np.zeros(mask_shape, dtype=np.uint8)
         roi_index_mask = np.zeros(mask_shape, dtype=np.uint16)
         for i, contour in enumerate(fire_contours):
@@ -93,6 +104,7 @@ class ImageProcessor:
         return roi_type_mask, roi_index_mask
 
     def _save_results(self, fire_contours, vegetation_contours, roi_type_mask, roi_index_mask, fire_mask_bin, vegetation_mask_bin):
+        # Store results as instance attributes for later use
         self.fire_contours = fire_contours
         self.vegetation_contours = vegetation_contours
         self.roi_type_mask = roi_type_mask
@@ -155,8 +167,37 @@ class ImageProcessor:
         mean_saliency_df.to_csv("./csv_output/mean_saliency.csv", index=False)
         print("Processing complete. Saliency data saved.")
 
+    def _keep_largest_regions(self, fire_contours, vegetation_contours, mask_shape, top_k=5):
+        """
+        Keeps only the top_k largest fire and vegetation regions by area.
+        Returns new masks and filtered contours.
+        """
+        # Sort contours by area and keep the largest ones
+        fire_contours_sorted = sorted(fire_contours, key=cv2.contourArea, reverse=True)[:top_k]
+        vegetation_contours_sorted = sorted(vegetation_contours, key=cv2.contourArea, reverse=True)[:top_k]
+
+        # Create empty masks
+        fire_mask_largest = np.zeros(mask_shape, dtype=np.uint8)
+        vegetation_mask_largest = np.zeros(mask_shape, dtype=np.uint8)
+
+        # Draw the largest contours
+        cv2.drawContours(fire_mask_largest, fire_contours_sorted, -1, color=255, thickness=-1)
+        cv2.drawContours(vegetation_mask_largest, vegetation_contours_sorted, -1, color=255, thickness=-1)
+
+        return fire_mask_largest, vegetation_mask_largest, fire_contours_sorted, vegetation_contours_sorted
+
 if __name__ == '__main__':
-    graph_var = input("Would you like to graph the images? (y/n): ").lower()
+    while True:
+        graph_var = input("Would you like to graph the images? (y/n): ").strip().lower()
+        if graph_var in ('y', 'n'):
+            break
+        print("Please enter 'y' or 'n'.")
+
+    while True:
+        save_var = input("Would you like to save the results? (y/n): ").strip().lower()
+        if save_var in ('y', 'n'):
+            break
+        print("Please enter 'y' or 'n'.")
     images = os.listdir("images")
 
     for counter, image_name in enumerate(images, start=1):
@@ -167,7 +208,8 @@ if __name__ == '__main__':
         processor.process_image(counter)
 
         # Plot ROI index map
-        plot_roi_index_map(processor.roi_index_mask, title=f"ROI Index Map - {image_name}")
+        if graph_var == 'y':
+            plot_roi_index_map(processor.roi_index_mask, title=f"ROI Index Map - {image_name}")
 
         # Show all relevant visualizations
         processor.graphing_func(
@@ -177,10 +219,12 @@ if __name__ == '__main__':
             saliency_map_gbvs=processor.saliency_map_gbvs
         )
 
-        # Optional: save results
-        # processor.save_contours(processor.roi_type_mask, processor.roi_index_mask, image_name)
-        # processor.save_image(processor.saliency_map_gbvs)
-
-    # Optional: save saliency summary
-    # processor.save_mean_saliency()
+        if save_var == 'y':
+            #Optional: save results
+            processor.save_contours(processor.roi_type_mask, processor.roi_index_mask, image_name)
+            processor.save_image(processor.saliency_map_gbvs)
+    
+    if save_var == 'y':
+        # Optional: save saliency summary
+        processor.save_mean_saliency()
 
