@@ -17,69 +17,82 @@ def plot_roi_index_map(roi_index_mask, title="ROI Index Map"):
 
 
 class ImageProcessor:
-    def __init__(self, graph_var, imname):
+    def __init__(self, graph_var, imname, top_k=5):
         self.graph_var = graph_var
         self.imname = imname
+        self.top_k = top_k
         self.img = cv2.imread(imname)
         self.mean_saliency_list = []
 
     def process_image(self, counter):
         print(f"Processing {self.imname}, number: {counter}")
+        img_float, blue_channel, green_channel, red_channel = self._prepare_image()
+        red_ratio, green_ratio = self._compute_color_ratios(red_channel, green_channel, blue_channel)
+        fire_mask, vegetation_mask = self._compute_masks(red_ratio, green_ratio)
+        fire_mask_bin, vegetation_mask_bin = self._postprocess_masks(fire_mask, vegetation_mask)
+        fire_contours, vegetation_contours = self._find_contours(fire_mask_bin, vegetation_mask_bin)
+        roi_type_mask, roi_index_mask = self._assign_rois(fire_contours, vegetation_contours, fire_mask_bin.shape)
+        self._save_results(
+            fire_contours, vegetation_contours, roi_type_mask, roi_index_mask,
+            fire_mask_bin, vegetation_mask_bin
+        )
+        self.saliency_map_gbvs = gbvs.compute_saliency(self.img)
 
-        # Convert to float to prevent division issues
+    def _prepare_image(self):
         img_float = self.img.astype(np.float32) + 1e-6
-        blue_channel, green_channel, red_channel = img_float[:, :, 0], img_float[:, :, 1], img_float[:, :, 2]
+        blue_channel = img_float[:, :, 0]
+        green_channel = img_float[:, :, 1]
+        red_channel = img_float[:, :, 2]
+        return img_float, blue_channel, green_channel, red_channel
 
-        # Normalize color channels
+    def _compute_color_ratios(self, red_channel, green_channel, blue_channel):
         total = red_channel + green_channel + blue_channel
         red_ratio = red_channel / total
         green_ratio = green_channel / total
+        return red_ratio, green_ratio
 
-        # Thresholds:
+    def _compute_masks(self, red_ratio, green_ratio):
         red_mean = np.mean(red_ratio)
         red_std = np.std(red_ratio)
         adaptive_red_thresh = red_mean + 0.5 * red_std
         fire_mask = (red_ratio > adaptive_red_thresh).astype(np.uint8)
 
-        # Calculate dynamic threshold as mean + N * std
         green_mean = np.mean(green_ratio)
         green_std = np.std(green_ratio)
-        adaptive_green_thresh = green_mean + 0.5 * green_std  # tweak multiplier as needed
-
+        adaptive_green_thresh = green_mean + 0.5 * green_std
         vegetation_mask = (green_ratio > adaptive_green_thresh).astype(np.uint8)
+        return fire_mask, vegetation_mask
 
-        # Blur to reduce small noise (optional depending on your data)
+    def _postprocess_masks(self, fire_mask, vegetation_mask):
         fire_mask_blur = cv2.GaussianBlur(fire_mask, (5, 5), 0)
         vegetation_mask_blur = cv2.GaussianBlur(vegetation_mask, (5, 5), 0)
-
-        # Threshold blurred mask to binary again
         _, fire_mask_bin = cv2.threshold(fire_mask_blur, 0.5, 1, cv2.THRESH_BINARY)
         _, vegetation_mask_bin = cv2.threshold(vegetation_mask_blur, 0.5, 1, cv2.THRESH_BINARY)
-
-        # Convert to uint8 for contour detection
         fire_mask_bin = (fire_mask_bin * 255).astype(np.uint8)
         vegetation_mask_bin = (vegetation_mask_bin * 255).astype(np.uint8)
+        kernel = np.ones((7, 7), np.uint8)
+        fire_mask_bin = cv2.morphologyEx(fire_mask_bin, cv2.MORPH_CLOSE, kernel)
+        vegetation_mask_bin = cv2.morphologyEx(vegetation_mask_bin, cv2.MORPH_CLOSE, kernel)
+        return fire_mask_bin, vegetation_mask_bin
 
-        # Detect contours
+    def _find_contours(self, fire_mask_bin, vegetation_mask_bin):
         fire_contours, _ = cv2.findContours(fire_mask_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         vegetation_contours, _ = cv2.findContours(vegetation_mask_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        return fire_contours, vegetation_contours
 
-        # Initialize masks for region labels
-        roi_type_mask = np.zeros_like(fire_mask_bin, dtype=np.uint8)  # 1 = Fire, 2 = Vegetation
-        roi_index_mask = np.zeros_like(fire_mask_bin, dtype=np.uint16)  # Larger IDs if needed
-
-        # Assign ROIs for fire
+    def _assign_rois(self, fire_contours, vegetation_contours, mask_shape):
+        roi_type_mask = np.zeros(mask_shape, dtype=np.uint8)
+        roi_index_mask = np.zeros(mask_shape, dtype=np.uint16)
         for i, contour in enumerate(fire_contours):
             cv2.drawContours(roi_type_mask, [contour], -1, color=1, thickness=-1)
             cv2.drawContours(roi_index_mask, [contour], -1, color=i+1, thickness=-1)
-
-        # Assign ROIs for vegetation
-        offset = len(fire_contours)  # To avoid index collision
+        offset = len(fire_contours)
         for i, contour in enumerate(vegetation_contours):
             cv2.drawContours(roi_type_mask, [contour], -1, color=2, thickness=-1)
             cv2.drawContours(roi_index_mask, [contour], -1, color=offset+i+1, thickness=-1)
+        return roi_type_mask, roi_index_mask
 
-        # Save everything to self
+    def _save_results(self, fire_contours, vegetation_contours, roi_type_mask, roi_index_mask, fire_mask_bin, vegetation_mask_bin):
         self.fire_contours = fire_contours
         self.vegetation_contours = vegetation_contours
         self.roi_type_mask = roi_type_mask
@@ -87,12 +100,6 @@ class ImageProcessor:
         self.fire_mask_bin = fire_mask_bin
         self.vegetation_mask_bin = vegetation_mask_bin
 
-        # OPTIONAL: generate saliency map if you have the GBVS model
-        # Compute saliency maps
-        self.saliency_map_gbvs = gbvs.compute_saliency(self.img)
-
-
-    
     def save_contours(self, roi_type_mask, roi_index_mask, image_name):
         os.makedirs("./contour_masks", exist_ok=True)
         np.save(f"./contour_masks/{image_name}_roi_type.npy", roi_type_mask)
