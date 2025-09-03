@@ -199,3 +199,6 @@ Temporary Items
 
 # Ignore saliency_models folder
 saliency_models/
+
+# Ignore .pdf files
+*.pdf
