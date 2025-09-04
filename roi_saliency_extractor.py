@@ -237,7 +237,6 @@ class ImageProcessor:
             elif event.key == 'd':
                 self.mode = 'd'
                 print("Mode: Delete")
-                print(f"Removing ROI type: {self.roi_type_mask[y, x]} at ({x},{y})")
             elif event.key == '=':
                 self.mode = '='
                 self.radius = self.radius + 5
@@ -280,6 +279,7 @@ class ImageProcessor:
                 if roi_idx == 0:
                     print("Clicked background, nothing to remove.")
                     return
+                print(f"Removing ROI type: {self.roi_type_mask[y, x]} at ({x},{y})")
                 print(f"Removing ROI index: {roi_idx}")
                 # Remove all pixels with this ROI index from both masks
                 self.roi_index_mask[self.roi_index_mask == roi_idx] = 0
