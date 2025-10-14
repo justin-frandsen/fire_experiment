@@ -2,6 +2,11 @@
 
 This is my code for an experiment analyzing how primates attend to fire. I utilized a saliency model GBVS to assess if attending to fire was accounted for via saliency or through a quality of the fire itself.
 
+[![Python](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![GitHub Repo Size](https://img.shields.io/github/repo-size/justin-frandsen/fire_experiment.svg)](https://github.com/justin-frandsen/fire_experiment)
+[![Last Commit](https://img.shields.io/github/last-commit/justin-frandsen/fire_experiment.svg)](https://github.com/justin-frandsen/fire_experiment/commits/main)
+
 ## Table of Contents
 - [Introduction](#introduction)
 - [Installation](#installation)
@@ -27,6 +32,9 @@ cp -r gbvs/saliency_models fire_experiment/
 ```
 
 ## Usage
+
+Note: This code was run on **Python 3.13.6**. The `requirements.txt` is set up with compatible package versions. Users running other Python versions may need to adjust package versions accordingly.
+
 To use the code, run the following command:
 ```bash
 python roi_saliency_extractor.py
