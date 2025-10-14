@@ -202,3 +202,13 @@ saliency_models/
 
 # Ignore .pdf files
 *.pdf
+
+# Docker files
+# Ignore local Docker metadata, but keep Dockerfile and docker-compose.yml
+docker-compose.override.yml
+.dockerignore
+*.log
+*.pid
+*.tar
+*.sock
+tmp/
