@@ -27,15 +27,16 @@ fixation_features <- fixation_features %>%
 # full model with all predictors
 ## relevel to compare background and vegitation vs fire
 fixation_features$roi_type <- relevel(fixation_features$roi_type, ref = "1")
+fixation_features %>% filter()
 
 #model
-model_fix_full <- lmer(FixDur ~ saliency_scaled + area_scaled + roi_type + Species + (1 | SubjectName),
-                       data = fixation_features)
+model_fix_full <- lmer(FixDur ~ saliency_scaled + area_scaled + roi_type + (1 | SubjectName),
+                       data = fixation_features %>% filter(ImageType == "F"))
 
 summary(model_fix_full)
 
 #pairwise comparisons
-emmeans(model_fix_full, pairwise ~ roi_type)
+emmeans(model_fix_full, pairwise ~ ROI)
 
 # model without first fixations
 fix_no_first <- fixation_features %>%
@@ -68,7 +69,7 @@ summary(model_trial)
 #only chimp results
 fix_chimp <- fixation_features %>% filter(Species == "Chimp")
 
-model_chimp <- lmer(FixDur ~ saliency_scaled + area_scaled + roi_type + (1 | SubjectName),
+model_chimp <- lmer(FixDur ~ saliency_scaled + area_scaled + ROI + (1 | SubjectName),
                     data = fix_chimp)
 
 summary(model_chimp)
