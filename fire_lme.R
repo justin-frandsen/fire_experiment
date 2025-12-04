@@ -10,7 +10,6 @@ setwd("Documents/python/repos/fire_experiment")
 fixation_features <- read.csv("fixation_features.csv")
 unique(fixation_features$SubjectName)
 
-
 # roi_type: 0 = background, 1 = fire, 2 = vegetation
 # roi_index: unique ID per region, starting from 1
 
