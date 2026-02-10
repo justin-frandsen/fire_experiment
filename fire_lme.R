@@ -72,6 +72,7 @@ trial_roi_df <- fixation_features %>%
     total_fixdur = sum(FixDur),
     mean_sal     = mean(saliency),
     mean_area    = mean(area),
+    n = n(),
     .groups = "drop"
   ) %>%
   group_by(SubjectName, Species, Stimuli, trial_num) %>%
@@ -80,7 +81,8 @@ trial_roi_df <- fixation_features %>%
     fill = list(
       total_fixdur = 0,
       mean_sal = 0,
-      mean_area = 0
+      mean_area = 0,
+      n = 0
     )
   ) %>%
   ungroup() %>% # Scale predictors after aggregation
@@ -90,23 +92,14 @@ trial_roi_df <- fixation_features %>%
     mean_area_scaled    = scale(mean_area)[,1]
   )
 
-fixation_features$roi_type <- relevel(fixation_features$roi_type, ref = "1")
+trial_roi_df$roi_type <- relevel(trial_roi_df$roi_type, ref = "1")
 
 model_trial <- lmer(
-  total_fixdur ~ roi_type + mean_sal_scaled + mean_area_scaled +
+  n ~ roi_type + mean_sal_scaled + mean_area_scaled +
     (1 | SubjectName),
   data = trial_roi_df)
 
 summary(model_trial)
-
-trial_roi_df %>%
-  group_by(roi_type) %>%
-  summarise(
-    mean_fixdur = mean(total_fixdur),
-    sd_fixdur   = sd(total_fixdur),
-    median_fixdur = median(total_fixdur),
-    n = n()
-  )
 
 #compare with and without roi_type
 
