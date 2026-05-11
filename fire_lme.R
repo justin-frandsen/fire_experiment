@@ -23,6 +23,13 @@ fixation_features <- fixation_features %>%
   mutate(saliency_scaled = scale(saliency)[,1], #scale predictors
          area_scaled = scale(area)[,1])
 
+
+fixation_features <- fixation_features %>%
+  group_by(SubjectName, Stimuli, Trial) %>%
+  mutate(total_trial_fixation = sum(FixDur, na.rm = TRUE)) %>%
+  ungroup() %>%
+  filter(total_trial_fixation >= 500)
+
 # full model with all predictors
 ## relevel to compare background and vegitation vs fire
 fixation_features$roi_type <- relevel(fixation_features$roi_type, ref = "1")
@@ -42,7 +49,7 @@ model_fix_full <- lmer(FixDur ~ saliency_scaled + area_scaled + roi_type + (1 | 
 summary(model_fix_full)
 
 #pairwise comparisons
-emmeans(model_fix_full, pairwise ~ ROI)
+emmeans(model_fix_full, pairwise ~ roi_type)
 
 # model without first fixations
 fix_no_first <- fixation_features %>%
@@ -66,7 +73,7 @@ trial_roi_df <- fixation_features %>%
     .groups = "drop"
   ) 
 
-trial_roi_df <- fixation_features %>%
+trial_roi_df_completed <- fixation_features %>%
   group_by(SubjectName, Species, Stimuli, trial_num, roi_type, ImageType) %>%
   summarise(
     total_fixdur = sum(FixDur),
@@ -89,19 +96,71 @@ trial_roi_df <- fixation_features %>%
   mutate(
     total_fixdur_scaled = scale(total_fixdur)[,1],
     mean_sal_scaled     = scale(mean_sal)[,1],
-    mean_area_scaled    = scale(mean_area)[,1]
+    mean_area_scaled    = scale(mean_area)[,1],
+    
+    image_type = if_else(str_detect(Stimuli, "SS"), "Scrambled",
+                         if_else(str_detect(Stimuli, "FS"), "Fire", NA))
   )
+
+trial_roi_df <- fixation_features %>%
+  group_by(SubjectName, Species, Stimuli, trial_num, roi_type, ImageType) %>%
+  summarise(
+    total_fixdur = sum(FixDur),
+    mean_sal     = mean(saliency),
+    mean_area    = mean(area),
+    n = n(),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    total_fixdur_scaled = scale(total_fixdur)[,1],
+    mean_sal_scaled     = scale(mean_sal)[,1],
+    mean_area_scaled    = scale(mean_area)[,1],
+    
+    image_type = if_else(str_detect(Stimuli, "SS"), "Scrambled",
+                         if_else(str_detect(Stimuli, "FS"), "Fire", NA)))
 
 trial_roi_df$roi_type <- relevel(trial_roi_df$roi_type, ref = "1")
 
+trial_roi_df %>%
+  group_by(roi_type) %>%
+  summarise(n_na_ImageType = sum(is.na(ImageType)),
+            mean = mean(total_fixdur))
+
+trial_roi_df %>%
+  group_by(ImageType) %>%
+  summarise(mean = mean(total_fixdur))
+
 model_trial <- lmer(
-  n ~ roi_type + mean_sal_scaled + mean_area_scaled +
+  total_fixdur ~ roi_type + mean_sal_scaled + mean_area_scaled + 
     (1 | SubjectName),
-  data = trial_roi_df)
+  data = trial_roi_df %>% filter(ImageType == "F"))
 
 summary(model_trial)
 
+model_trial_int <- lmer(
+  total_fixdur ~ roi_type + mean_sal_scaled + mean_area_scaled + ImageType +
+    ImageType:roi_type+(1 | SubjectName),
+  data = trial_roi_df)
+
+summary(model_trial_int)
+
+model_trial_n <- lmer(
+  n~ roi_type + mean_sal_scaled + mean_area_scaled +
+    (1 | SubjectName),
+  data = trial_roi_df %>% filter(ImageType == "F"))
+
+summary(model_trial_n)
+
+model_trial_n_int <- lmer(
+  n~ roi_type + mean_sal_scaled + mean_area_scaled + ImageType +
+    ImageType:roi_type+(1 | SubjectName),
+  data = trial_roi_df)
+
+summary(model_trial_n_int)
+
 #compare with and without roi_type
+
+
 
 model_with_roi <- lmer(
   total_fixdur ~ roi_type + mean_sal_scaled + mean_area_scaled +
