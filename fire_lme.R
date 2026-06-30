@@ -21,7 +21,12 @@ fixation_features <- fixation_features %>%
          roi_type = as.factor(roi_type)) %>% 
   filter(FixDur >= 50) %>% #remove fixations less than 50ms
   mutate(saliency_scaled = scale(saliency)[,1], #scale predictors
-         area_scaled = scale(area)[,1])
+         area_scaled = scale(area)[,1],
+         ROI_type_combined = case_when(
+           ROI == "Fire" ~ "Fire",
+           roi_type == 2 ~ "Veg",
+           TRUE ~ "Background"),
+         ROI_type_combined = as.factor(ROI_type_combined))
 
 
 fixation_features <- fixation_features %>%
@@ -43,8 +48,8 @@ fixation_features <- fixation_features %>%
 
 
 #model
-model_fix_full <- lmer(FixDur ~ saliency_scaled + area_scaled + roi_type + (1 | SubjectName),
-                       data = fixation_features %>% filter(ImageType == "F"))
+model_fix_full <- lmer(FixDur ~ ROI_type_combined + area_scaled + saliency_scaled + (1 | SubjectName),
+                       data = fixation_features %>% filter(ImageType == "F", Species == "Baboon"))
 
 summary(model_fix_full)
 
@@ -65,7 +70,7 @@ summary(model_no_first)
 
 # Trial Level Models
 trial_roi_df <- fixation_features %>%
-  group_by(SubjectName, Species, Stimuli, trial_num, roi_type) %>%
+  group_by(SubjectName, Species, Stimuli, trial_num, ROI_type_combined) %>%
   summarise(
     total_fixdur = sum(FixDur),
     mean_sal     = mean(saliency),
@@ -119,7 +124,7 @@ trial_roi_df <- fixation_features %>%
     image_type = if_else(str_detect(Stimuli, "SS"), "Scrambled",
                          if_else(str_detect(Stimuli, "FS"), "Fire", NA)))
 
-trial_roi_df$roi_type <- relevel(trial_roi_df$roi_type, ref = "1")
+trial_roi_df$ROI_type_combined <- relevel(trial_roi_df$ROI_type_combined, ref = "Fire")
 
 trial_roi_df %>%
   group_by(roi_type) %>%
@@ -134,6 +139,17 @@ model_trial <- lmer(
   total_fixdur ~ roi_type + mean_sal_scaled + mean_area_scaled + 
     (1 | SubjectName),
   data = trial_roi_df %>% filter(ImageType == "F"))
+
+qqnorm(resid(model_trial))
+qqline(resid(model_trial))
+
+plot(fitted(model_trial), resid(model_trial))
+abline(h = 0)
+
+hist(trial_roi_df$total_fixdur, breaks = 50)
+
+qqnorm(ranef(model_trial)$SubjectName[[1]])
+qqline(ranef(model_trial)$SubjectName[[1]])
 
 summary(model_trial)
 
