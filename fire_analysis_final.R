@@ -33,7 +33,7 @@ fixation_features <- fixation_features %>%
   filter(total_trial_fixation >= 500)
 
 #making Fire ROIs the baseline
-fixation_features$ROI_type_combined <- relevel(fixation_features$ROI_type_combined, ref = "Fire")
+fixation_features$roi_type <- relevel(fixation_features$roi_type, ref = "1")
 
 # extract trial number
 fixation_features <- fixation_features %>%
@@ -44,27 +44,27 @@ fixation_features <- fixation_features %>%
 ### =========== Individual Fixations Models =======================
 
 ## Only fire images
-individual_fixations_model <- lmer(FixDur ~ ROI_type_combined + area_scaled + saliency_scaled + (1 | SubjectName),
+individual_fixations_model <- lmer(FixDur ~ roi_type + area_scaled + saliency_scaled + (1 | SubjectName),
                        data = fixation_features %>% filter(ImageType == "F"))
 summary(individual_fixations_model)
 
 # pairwise comparisons
-emmeans(individual_fixations_model, pairwise ~ ROI_type_combined)
+emmeans(individual_fixations_model, pairwise ~ roi_type)
 
-## Only Chimps
-individual_fixations_model_chimp <- lmer(FixDur ~ ROI_type_combined + area_scaled + saliency_scaled + (1 | SubjectName),
-                       data = fixation_features %>% filter(ImageType == "F", Species == "Chimp"))
-summary(individual_fixations_model_chimp)
+## Species model
+individual_fixations_model_species <- lmer(FixDur ~ roi_type * Species + area_scaled + saliency_scaled + (1 | SubjectName),
+                       data = fixation_features %>% filter(ImageType == "F"))
+summary(individual_fixations_model_species)
 
-## Only Baboons.  
-individual_fixations_model_baboons <- lmer(FixDur ~ ROI_type_combined + area_scaled + saliency_scaled + (1 | SubjectName),
-                                         data = fixation_features %>% filter(ImageType == "F", Species == "Baboon"))
-summary(individual_fixations_model_baboons)
+## Scene Type Model
+individual_fixations_model_species <- lmer(FixDur ~ roi_type * ImageType + area_scaled + saliency_scaled + (1 | SubjectName),
+                                           data = fixation_features)
+summary(individual_fixations_model_species)
 
 ### =========== Trial Level Fixations Models =======================
 # Trial Level Models
 trial_roi_df <- fixation_features %>%
-  group_by(SubjectName, Species, Stimuli, trial_num, ROI_type_combined, ImageType) %>%
+  group_by(SubjectName, Species, Stimuli, trial_num, roi_type, ImageType) %>%
   summarise(total_fixdur = sum(FixDur),
             mean_sal     = mean(saliency),
             mean_area    = mean(area),
@@ -78,72 +78,57 @@ trial_roi_df <- fixation_features %>%
 
 #create version with 2 types only fire and veg no background
 #trial_roi_no_background <- trial_roi_df %>%
-#  filter(ROI_type_combined != "Background") %>%
+#  filter(roi_type != "Background") %>%
 #  group_by(SubjectName, trial_num) %>%
 #  filter(
 #    n() == 2,
-#    all(c("Fire", "Veg") %in% ROI_type_combined)
+#    all(c("Fire", "Veg") %in% roi_type)
 #  ) %>%
 #  ungroup()
-  
 
 ## Only fire images
-full_trial_model <- lmer(total_fixdur ~ ROI_type_combined + mean_sal_scaled + mean_area_scaled + (1 | SubjectName),
+full_trial_model <- lmer(total_fixdur ~ roi_type + mean_sal_scaled + mean_area_scaled + (1 | SubjectName),
                     data = trial_roi_df %>% filter(ImageType == "F"))
 
 summary(full_trial_model)
 
 # pairwise comparisons
-emmeans(full_trial_model, pairwise ~ ROI_type_combined)
+emmeans(full_trial_model, pairwise ~ roi_type)
+
+## Trial level species analysis
+full_trial_species_model <- lmer(total_fixdur ~ roi_type * Species + mean_sal_scaled + mean_area_scaled + (1 | SubjectName),
+                               data = trial_roi_df %>% filter(ImageType == "F"))
+
+summary(full_trial_species_model)
 
 ## Image type comparison model
-full_trial_model_image <- lmer(total_fixdur ~ ROI_type_combined * ImageType + mean_sal_scaled + mean_area_scaled + (1 | SubjectName),
+full_trial_model_image <- lmer(total_fixdur ~ roi_type * ImageType + mean_sal_scaled + mean_area_scaled + (1 | SubjectName),
                          data = trial_roi_df)
 
 summary(full_trial_model_image)
 
-# pairwise comparisons
-emmeans(full_trial_model_image, pairwise ~ ROI_type_combined)
-
-## Only chimps 
-full_trial_chimp_model <- lmer(total_fixdur ~ ROI_type_combined + mean_sal_scaled + mean_area_scaled + (1 | SubjectName),
-                         data = trial_roi_df %>% filter(ImageType == "F", Species == "Chimp"))
-
-summary(full_trial_chimp_model)
-
-## Only baboons 
-full_trial_chimp_model <- lmer(total_fixdur ~ ROI_type_combined + mean_sal_scaled + mean_area_scaled + (1 | SubjectName),
-                               data = trial_roi_df %>% filter(ImageType == "F", Species == "Baboon"))
-
-summary(full_trial_chimp_model)
-
 ### =========== Number of Fixations Models =======================
 ## Only fire images
-full_trial_model <- lmer(total_fixdur ~ ROI_type_combined + mean_sal_scaled + mean_area_scaled + (1 | SubjectName),
+full_count_model <- lmer(fixation_count ~ roi_type + mean_sal_scaled + mean_area_scaled + (1 | SubjectName),
                          data = trial_roi_df %>% filter(ImageType == "F"))
 
-summary(full_trial_model)
+summary(full_count_model)
 
 # pairwise comparisons
-emmeans(model_trial, pairwise ~ ROI_type_combined)
+emmeans(full_count_model, pairwise ~ roi_type)
+
+## Trial level species analysis
+full_count_species_model <- lmer(fixation_count ~ roi_type * Species + mean_sal_scaled + mean_area_scaled + (1 | SubjectName),
+                                 data = trial_roi_df %>% filter(ImageType == "F"))
+
+summary(full_count_species_model)
+
+emm <- emmeans(full_count_species_model, ~ roi_type | Species, pbkrtest.limit = 3828)
+emm
+pairs(emm, adjust = "tukey")
 
 ## Image type comparison model
-full_trial_model_image <- lmer(fixation_count ~ ROI_type_combined * ImageType + mean_sal_scaled + mean_area_scaled + (1 | SubjectName),
+full_count_model_image <- lmer(fixation_count ~ roi_type * ImageType + mean_sal_scaled + mean_area_scaled + (1 | SubjectName),
                                data = trial_roi_df)
 
-summary(full_trial_model_image)
-
-# pairwise comparisons
-emmeans(model_trial, pairwise ~ ROI_type_combined)
-
-## Only chimps 
-full_trial_chimp_model <- lmer(fixation_count ~ ROI_type_combined + mean_sal_scaled + mean_area_scaled + (1 | SubjectName),
-                               data = trial_roi_df %>% filter(ImageType == "F", Species == "Chimp"))
-
-summary(full_trial_chimp_model)
-
-## Only baboons 
-full_trial_chimp_model <- lmer(fixation_count ~ ROI_type_combined + mean_sal_scaled + mean_area_scaled + (1 | SubjectName),
-                               data = trial_roi_df %>% filter(ImageType == "F", Species == "Baboon"))
-
-summary(full_trial_chimp_model)
+summary(full_count_model_image)
